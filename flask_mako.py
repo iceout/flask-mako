@@ -9,31 +9,25 @@
     :copyright: (c) 2012 by Béranger Enselme <benselme@gmail.com>
     :license: BSD, see LICENSE for more details.
 """
-import os, sys
+import os
+import sys
 
 from flask.signals import template_rendered
-
-# Find the context stack so we can resolve which application is calling this
-# extension.  Starting with Flask 0.9, the _app_ctx_stack is the correct one,
-# before that we need to use the _request_ctx_stack.
-try:
-    from flask import _app_ctx_stack as stack
-except ImportError:
-    from flask import _request_ctx_stack as stack
+from flask import current_app
 
 from werkzeug.debug.tbtools import Traceback, Frame, Line
 
 from mako.lookup import TemplateLookup
 from mako.template import Template
-from mako import exceptions
 from mako.exceptions import RichTraceback, text_error_template
 
 
 itervalues = getattr(dict, 'itervalues', dict.values)
 
-_BABEL_IMPORTS =  'from flask_babel import gettext as _, ngettext, ' \
+_BABEL_IMPORTS = 'from flask_babel import gettext as _, ngettext, ' \
                   'pgettext, npgettext'
-_FLASK_IMPORTS =  'from flask.helpers import url_for, get_flashed_messages'
+_FLASK_IMPORTS = 'from flask.helpers import url_for, get_flashed_messages'
+
 
 class MakoFrame(Frame):
     """ A special `~werkzeug.debug.tbtools.Frame` object for Mako sources. """
@@ -95,7 +89,6 @@ class TemplateError(RichTraceback, RuntimeError):
 
         return translated
 
-
     def __init__(self, template):
         super(TemplateError, self).__init__()
         self.einfo = sys.exc_info()
@@ -118,7 +111,6 @@ class MakoTemplates(object):
         if app is not None:
             self.init_app(app)
         self.app = app
-
 
     def init_app(self, app):
         """
@@ -227,7 +219,7 @@ def _render(template, context, app):
         rv = template.render(**context)
         template_rendered.send(app, template=template, context=context)
         return rv
-    except:
+    except Exception:
         translate = app.config.get("MAKO_TRANSLATE_EXCEPTIONS")
         if translate:
             translated = TemplateError(template)
@@ -244,9 +236,9 @@ def render_template(template_name, **context):
     :param context: the variables that should be available in the
                     context of the template.
     """
-    ctx = stack.top
-    return _render(_lookup(ctx.app).get_template(template_name),
-                   context, ctx.app)
+    app = current_app._get_current_object()
+    return _render(_lookup(app).get_template(template_name),
+                   context, app)
 
 
 def render_template_string(source, **context):
@@ -258,9 +250,9 @@ def render_template_string(source, **context):
     :param context: the variables that should be available in the
                     context of the template.
     """
-    ctx = stack.top
-    template = Template(source, lookup=_lookup(ctx.app))
-    return _render(template, context, ctx.app)
+    app = current_app._get_current_object()
+    template = Template(source, lookup=_lookup(app))
+    return _render(template, context, app)
 
 
 def render_template_def(template_name, def_name, **context):
@@ -276,6 +268,6 @@ def render_template_def(template_name, def_name, **context):
     :param context: the variables that should be available in the
                     context of the template.
     """
-    ctx = stack.top
-    template = _lookup(ctx.app).get_template(template_name)
-    return _render(template.get_def(def_name), context, ctx.app)
+    app = current_app._get_current_object()
+    template = _lookup(app).get_template(template_name)
+    return _render(template.get_def(def_name), context, app)
