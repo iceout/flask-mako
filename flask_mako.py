@@ -15,7 +15,7 @@ import sys
 from flask.signals import template_rendered
 from flask import current_app
 
-from werkzeug.debug.tbtools import Traceback, Frame, Line
+from werkzeug.debug.tbtools import DebugTraceback, DebugFrameSummary
 
 from mako.lookup import TemplateLookup
 from mako.template import Template
@@ -29,8 +29,8 @@ _BABEL_IMPORTS = 'from flask_babel import gettext as _, ngettext, ' \
 _FLASK_IMPORTS = 'from flask.helpers import url_for, get_flashed_messages'
 
 
-class MakoFrame(Frame):
-    """ A special `~werkzeug.debug.tbtools.Frame` object for Mako sources. """
+class MakoFrame(DebugFrameSummary):
+    """ A special `~werkzeug.debug.tbtools.DebugFrameSummary` object for Mako sources. """
     def __init__(self, exc_type, exc_value, tb, name, line):
         super(MakoFrame, self).__init__(exc_type, exc_value, tb)
         self.info = "(translated Mako exception)"
@@ -40,23 +40,6 @@ class MakoFrame(Frame):
         self.locals = dict(tb.tb_frame.f_locals['context'].kwargs)
         self.locals['__mako_module_locals__'] = old_locals
 
-    def get_annotated_lines(self):
-        """
-        Remove frame-finding code from `~werkzeug.debug.tbtools.Frame`. This
-        code is actively dangerous when run on Mako templates because
-        Werkzeug's parsing doesn't understand their syntax. Instead, just mark
-        the current line.
-
-        """
-        lines = [Line(idx + 1, x) for idx, x in enumerate(self.sourcelines)]
-
-        try:
-            lines[self.lineno - 1].current = True
-        except IndexError:
-            pass
-
-        return lines
-
 
 class TemplateError(RichTraceback, RuntimeError):
     """ A template has thrown an error during rendering. """
@@ -65,7 +48,7 @@ class TemplateError(RichTraceback, RuntimeError):
         """ Munge the default Werkzeug traceback to include Mako info. """
 
         orig_type, orig_value, orig_tb = self.einfo
-        translated = Traceback(orig_type, orig_value, tb)
+        translated = DebugTraceback(orig_type, orig_value, tb)
 
         # Drop the "raise" frame from the traceback.
         translated.frames.pop()
@@ -83,7 +66,7 @@ class TemplateError(RichTraceback, RuntimeError):
             if name:
                 new_frame = MakoFrame(orig_type, orig_value, tb, name, line)
             else:
-                new_frame = Frame(orig_type, orig_value, tb)
+                new_frame = DebugFrameSummary(orig_type, orig_value, tb)
 
             translated.frames.append(new_frame)
 
